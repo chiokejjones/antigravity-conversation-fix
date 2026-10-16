@@ -58,12 +58,22 @@ import time
 import subprocess
 import platform
 import webbrowser
+from pathlib import Path
+from datetime import datetime, timezone
 from urllib.parse import quote, unquote, urlparse
 from urllib.request import urlopen, Request
 
-_CURRENT_VERSION = "1.07"
+_CURRENT_VERSION = "1.08"
 _GITHUB_REPO = "FutureisinPast/antigravity-conversation-fix"
 _RELEASES_URL = f"https://github.com/{_GITHUB_REPO}/releases/latest"
+
+ANTIGRAVITY_FOLDERS = [
+    "antigravity-cli",
+    "antigravity-ide",
+    "antigravity",
+    "antigravity-backup",
+]
+SERVICE_NAME = "antigravity-cli-daemon.service"
 
 # ─── Path Detection ──────────────────────────────────────────────────────────
 # Antigravity was renamed to "Antigravity IDE" in a recent update.
@@ -161,26 +171,22 @@ if _SYSTEM == "Windows":
     )
     DB_PATH = _first_existing(*_DB_CANDIDATES)
     CONVERSATIONS_DIR = _first_existing(
-        os.path.join(_gemini, "antigravity-ide", "conversations"),
-        os.path.join(_gemini, "antigravity", "conversations"),
+        *[os.path.join(_gemini, folder, "conversations") for folder in ANTIGRAVITY_FOLDERS]
     )
     BRAIN_DIR = _first_existing(
-        os.path.join(_gemini, "antigravity-ide", "brain"),
-        os.path.join(_gemini, "antigravity", "brain"),
+        *[os.path.join(_gemini, folder, "brain") for folder in ANTIGRAVITY_FOLDERS]
     )
     WORKSPACE_STORAGE_DIR = _first_existing(
         os.path.join(_appdata, "Antigravity IDE", "User", "workspaceStorage"),
         os.path.join(_appdata, "antigravity", "User", "workspaceStorage"),
     )
     _ALL_CONV_DIRS = [
-        os.path.join(_gemini, "antigravity-ide", "conversations"),
-        os.path.join(_gemini, "antigravity", "conversations"),
-        os.path.join(_gemini, "antigravity-backup", "conversations"),
+        os.path.join(_gemini, folder, "conversations")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
     _ALL_BRAIN_DIRS = [
-        os.path.join(_gemini, "antigravity-ide", "brain"),
-        os.path.join(_gemini, "antigravity", "brain"),
-        os.path.join(_gemini, "antigravity-backup", "brain"),
+        os.path.join(_gemini, folder, "brain")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
 elif _IS_WSL:
     _wsl_appdata = _get_wsl_windows_appdata()
@@ -203,24 +209,20 @@ elif _IS_WSL:
         DB_PATH = ""
         WORKSPACE_STORAGE_DIR = ""
 
+    _gemini_wsl = os.path.join(_home, ".gemini")
     CONVERSATIONS_DIR = _first_existing(
-        os.path.join(_home, ".gemini", "antigravity-ide", "conversations"),
-        os.path.join(_home, ".gemini", "antigravity", "conversations"),
+        *[os.path.join(_gemini_wsl, folder, "conversations") for folder in ANTIGRAVITY_FOLDERS]
     )
     BRAIN_DIR = _first_existing(
-        os.path.join(_home, ".gemini", "antigravity-ide", "brain"),
-        os.path.join(_home, ".gemini", "antigravity", "brain"),
+        *[os.path.join(_gemini_wsl, folder, "brain") for folder in ANTIGRAVITY_FOLDERS]
     )
-    _gemini_wsl = os.path.join(_home, ".gemini")
     _ALL_CONV_DIRS = [
-        os.path.join(_gemini_wsl, "antigravity-ide", "conversations"),
-        os.path.join(_gemini_wsl, "antigravity", "conversations"),
-        os.path.join(_gemini_wsl, "antigravity-backup", "conversations"),
+        os.path.join(_gemini_wsl, folder, "conversations")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
     _ALL_BRAIN_DIRS = [
-        os.path.join(_gemini_wsl, "antigravity-ide", "brain"),
-        os.path.join(_gemini_wsl, "antigravity", "brain"),
-        os.path.join(_gemini_wsl, "antigravity-backup", "brain"),
+        os.path.join(_gemini_wsl, folder, "brain")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
 elif _SYSTEM == "Darwin":  # macOS
     _home = os.path.expanduser("~")
@@ -231,28 +233,24 @@ elif _SYSTEM == "Darwin":  # macOS
         os.path.join(_support, "antigravity", "User", "globalStorage", "state.vscdb"),
     )
     DB_PATH = _first_existing(*_DB_CANDIDATES)
-    CONVERSATIONS_DIR = _first_existing(
-        os.path.join(_home, ".gemini", "antigravity-ide", "conversations"),
-        os.path.join(_home, ".gemini", "antigravity", "conversations"),
-    )
-    BRAIN_DIR = _first_existing(
-        os.path.join(_home, ".gemini", "antigravity-ide", "brain"),
-        os.path.join(_home, ".gemini", "antigravity", "brain"),
-    )
     WORKSPACE_STORAGE_DIR = _first_existing(
         os.path.join(_support, "Antigravity IDE", "User", "workspaceStorage"),
         os.path.join(_support, "antigravity", "User", "workspaceStorage"),
     )
     _gemini_mac = os.path.join(_home, ".gemini")
+    CONVERSATIONS_DIR = _first_existing(
+        *[os.path.join(_gemini_mac, folder, "conversations") for folder in ANTIGRAVITY_FOLDERS]
+    )
+    BRAIN_DIR = _first_existing(
+        *[os.path.join(_gemini_mac, folder, "brain") for folder in ANTIGRAVITY_FOLDERS]
+    )
     _ALL_CONV_DIRS = [
-        os.path.join(_gemini_mac, "antigravity-ide", "conversations"),
-        os.path.join(_gemini_mac, "antigravity", "conversations"),
-        os.path.join(_gemini_mac, "antigravity-backup", "conversations"),
+        os.path.join(_gemini_mac, folder, "conversations")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
     _ALL_BRAIN_DIRS = [
-        os.path.join(_gemini_mac, "antigravity-ide", "brain"),
-        os.path.join(_gemini_mac, "antigravity", "brain"),
-        os.path.join(_gemini_mac, "antigravity-backup", "brain"),
+        os.path.join(_gemini_mac, folder, "brain")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
 else:  # Linux and other POSIX systems
     _home = os.path.expanduser("~")
@@ -263,28 +261,24 @@ else:  # Linux and other POSIX systems
         os.path.join(_config, "Antigravity", "User", "globalStorage", "state.vscdb"),
     )
     DB_PATH = _first_existing(*_DB_CANDIDATES)
-    CONVERSATIONS_DIR = _first_existing(
-        os.path.join(_home, ".gemini", "antigravity-ide", "conversations"),
-        os.path.join(_home, ".gemini", "antigravity", "conversations"),
-    )
-    BRAIN_DIR = _first_existing(
-        os.path.join(_home, ".gemini", "antigravity-ide", "brain"),
-        os.path.join(_home, ".gemini", "antigravity", "brain"),
-    )
     WORKSPACE_STORAGE_DIR = _first_existing(
         os.path.join(_config, "Antigravity IDE", "User", "workspaceStorage"),
         os.path.join(_config, "Antigravity", "User", "workspaceStorage"),
     )
     _gemini_linux = os.path.join(_home, ".gemini")
+    CONVERSATIONS_DIR = _first_existing(
+        *[os.path.join(_gemini_linux, folder, "conversations") for folder in ANTIGRAVITY_FOLDERS]
+    )
+    BRAIN_DIR = _first_existing(
+        *[os.path.join(_gemini_linux, folder, "brain") for folder in ANTIGRAVITY_FOLDERS]
+    )
     _ALL_CONV_DIRS = [
-        os.path.join(_gemini_linux, "antigravity-ide", "conversations"),
-        os.path.join(_gemini_linux, "antigravity", "conversations"),
-        os.path.join(_gemini_linux, "antigravity-backup", "conversations"),
+        os.path.join(_gemini_linux, folder, "conversations")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
     _ALL_BRAIN_DIRS = [
-        os.path.join(_gemini_linux, "antigravity-ide", "brain"),
-        os.path.join(_gemini_linux, "antigravity", "brain"),
-        os.path.join(_gemini_linux, "antigravity-backup", "brain"),
+        os.path.join(_gemini_linux, folder, "brain")
+        for folder in ANTIGRAVITY_FOLDERS
     ]
 
 DB_PATHS = _existing_paths(*_DB_CANDIDATES)
@@ -1403,27 +1397,390 @@ def resolve_title(conversation_id, existing_titles, conversation_path=None):
 
 # ─── Protobuf Entry Builder ──────────────────────────────────────────────────
 
-def build_trajectory_entry(conversation_id, title, existing_inner_data=None,
-                           workspace_path=None, conversation_mtime=None,
-                           source_is_db=False):
+def ensure_db_integrity(db_path: Path):
     """
-    Build a single trajectory summary protobuf entry.
+    Check SQLite database integrity. If corrupted, recover via `sqlite3 <db_path> .recover`.
+    """
+    if not isinstance(db_path, Path):
+        db_path = Path(db_path)
+    if not db_path.exists():
+        return
 
-    - If existing_inner_data is provided, title (field 1) is replaced but
-      ALL other fields (workspace, timestamps, tool state) are preserved.
-    - If workspace_path is provided and there is no existing workspace,
-      a workspace field (field 9) is injected.
-    - Existing .db entries refresh only updated-at field 3 when the source file
-      is newer. Existing .pb entries retain their current timestamps.
-    - New entries receive timestamp fields 3, 7, and 10 from the source mtime.
+    is_ok = False
+    conn = None
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cur = conn.cursor()
+        cur.execute("PRAGMA integrity_check;")
+        rows = cur.fetchall()
+        if len(rows) == 1 and str(rows[0][0]).lower() == "ok":
+            is_ok = True
+    except Exception:
+        is_ok = False
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except Exception:
+                pass
+
+    if not is_ok:
+        recovered_sql = ""
+        try:
+            proc = subprocess.run(
+                ["sqlite3", str(db_path), ".recover"],
+                capture_output=True,
+                text=True,
+            )
+            if proc.returncode == 0:
+                recovered_sql = proc.stdout
+        except Exception:
+            pass
+
+        corrupt_path = db_path.with_name(db_path.name + ".corrupt")
+        try:
+            if corrupt_path.exists():
+                corrupt_path.unlink()
+            db_path.rename(corrupt_path)
+        except OSError:
+            pass
+
+        for suffix in ("-wal", "-shm"):
+            sidecar = Path(str(db_path) + suffix)
+            if sidecar.exists():
+                try:
+                    sidecar.unlink()
+                except OSError:
+                    pass
+
+        try:
+            conn = sqlite3.connect(str(db_path))
+            if recovered_sql:
+                conn.executescript(recovered_sql)
+            conn.commit()
+            conn.close()
+        except Exception:
+            pass
+
+
+def is_remote_control_daemon_active() -> bool:
+    """Return True if the systemd antigravity-cli-daemon service is active."""
+    for cmd in (
+        ["systemctl", "--user", "is-active", SERVICE_NAME],
+        ["systemctl", "is-active", SERVICE_NAME],
+    ):
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0 and res.stdout.strip() == "active":
+                return True
+        except Exception:
+            pass
+    return False
+
+
+def stop_remote_control_daemon():
+    """Stop the remote control daemon service."""
+    for cmd in (
+        ["systemctl", "--user", "stop", SERVICE_NAME],
+        ["systemctl", "stop", SERVICE_NAME],
+    ):
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                return
+        except Exception:
+            pass
+
+
+def start_remote_control_daemon():
+    """Start the remote control daemon service."""
+    for cmd in (
+        ["systemctl", "--user", "start", SERVICE_NAME],
+        ["systemctl", "start", SERVICE_NAME],
+    ):
+        try:
+            res = subprocess.run(cmd, capture_output=True, text=True)
+            if res.returncode == 0:
+                return
+        except Exception:
+            pass
+
+
+def inspect_cli_conversation_db(conv_db_path: Path) -> dict:
+    """
+    Inspect a CLI conversation .db file for step count, title, and workspace URI.
+    Returns: {"step_count": int, "title": str | None, "workspace_uri": str | None}
+    """
+    path = Path(conv_db_path) if not isinstance(conv_db_path, Path) else conv_db_path
+    res = {"step_count": 0, "title": None, "workspace_uri": None}
+    if not path.exists():
+        return res
+
+    res["title"] = extract_title_from_conversation_db(path)
+
+    conn = None
+    try:
+        conn = _open_sqlite_readonly(path)
+        cur = conn.cursor()
+
+        try:
+            cur.execute("SELECT COUNT(*) FROM steps")
+            row = cur.fetchone()
+            if row:
+                res["step_count"] = row[0]
+        except sqlite3.Error:
+            try:
+                cur.execute("SELECT COUNT(*) FROM conversation_steps")
+                row = cur.fetchone()
+                if row:
+                    res["step_count"] = row[0]
+            except sqlite3.Error:
+                pass
+
+        try:
+            cur.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='trajectory_metadata_blob'"
+            )
+            if cur.fetchone():
+                cols = {r[1] for r in cur.execute("PRAGMA table_info(trajectory_metadata_blob)").fetchall()}
+                blob_col = "data" if "data" in cols else ("blob" if "blob" in cols else None)
+                if blob_col:
+                    cur.execute(f"SELECT {blob_col} FROM trajectory_metadata_blob WHERE id='main'")
+                    row = cur.fetchone()
+                    if row and row[0]:
+                        raw_blob = row[0]
+                        if isinstance(raw_blob, str):
+                            blob_bytes = raw_blob.encode("utf-8", errors="replace")
+                        elif isinstance(raw_blob, memoryview):
+                            blob_bytes = raw_blob.tobytes()
+                        else:
+                            blob_bytes = bytes(raw_blob)
+
+                        match = re.search(rb"file:///[^\x00-\x1f\"\'<>]+", blob_bytes)
+                        if match:
+                            res["workspace_uri"] = match.group(0).decode("utf-8", errors="replace").rstrip("\x00")
+                        else:
+                            match_remote = re.search(rb"vscode-remote://[^\x00-\x1f\"\'<>]+", blob_bytes)
+                            if match_remote:
+                                res["workspace_uri"] = match_remote.group(0).decode("utf-8", errors="replace").rstrip("\x00")
+        except sqlite3.Error:
+            pass
+    except (OSError, sqlite3.Error):
+        pass
+    finally:
+        if conn is not None:
+            conn.close()
+
+    return res
+
+
+def find_cli_summaries_db() -> Path:
+    """Return path to ~/.gemini/antigravity-cli/conversation_summaries.db."""
+    return Path.home() / ".gemini" / "antigravity-cli" / "conversation_summaries.db"
+
+
+def extract_existing_metadata_from_cli_db(db_path: Path) -> tuple:
+    """
+    Read existing titles and raw_summary blobs from conversation_summaries.db if it exists.
+    Returns (titles_dict, blobs_dict).
+    """
+    titles = {}
+    blobs = {}
+    if not isinstance(db_path, Path):
+        db_path = Path(db_path)
+    if not db_path.exists():
+        return titles, blobs
+
+    try:
+        conn = _open_sqlite_readonly(db_path)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name='conversation_summaries'"
+        )
+        if cur.fetchone():
+            cur.execute("SELECT conversation_id, title, raw_summary FROM conversation_summaries")
+            for cid, title, raw_summary in cur.fetchall():
+                if cid:
+                    if raw_summary:
+                        blobs[cid] = raw_summary
+                    if title and not _is_generated_fallback_title(title, cid):
+                        titles[cid] = title
+        conn.close()
+    except Exception:
+        pass
+
+    return titles, blobs
+
+
+def rebuild_cli_summaries_db(db_path: Path, conversations: list) -> int:
+    """
+    Rebuild or update conversation_summaries table in conversation_summaries.db.
+    Returns count of updated/inserted conversations.
+    """
+    if not isinstance(db_path, Path):
+        db_path = Path(db_path)
+
+    ensure_db_integrity(db_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    if db_path.exists():
+        backup_path = db_path.with_suffix(".db.bak")
+        try:
+            src_conn = sqlite3.connect(str(db_path))
+            dst_conn = sqlite3.connect(str(backup_path))
+            src_conn.backup(dst_conn)
+            dst_conn.close()
+            src_conn.close()
+        except Exception:
+            pass
+
+    conn = sqlite3.connect(str(db_path))
+    conn.execute("PRAGMA journal_mode=WAL;")
+
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS conversation_summaries (
+            conversation_id TEXT PRIMARY KEY,
+            title TEXT NOT NULL DEFAULT "",
+            preview TEXT NOT NULL DEFAULT "",
+            step_count INTEGER NOT NULL DEFAULT 0,
+            last_modified_time DATETIME NOT NULL,
+            workspace_uris TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT "",
+            source TEXT NOT NULL DEFAULT "",
+            project_id TEXT NOT NULL DEFAULT "",
+            agent_name TEXT NOT NULL DEFAULT "",
+            parent_conversation_id TEXT NOT NULL DEFAULT "",
+            raw_summary BLOB,
+            group_id TEXT NOT NULL DEFAULT ''
+        );
+    """)
+
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(conversation_summaries);")
+    existing_cols = {row[1] for row in cur.fetchall()}
+    has_user_input_time = "last_user_input_time" in existing_cols
+
+    if has_user_input_time:
+        sql = """
+            INSERT INTO conversation_summaries (
+                conversation_id, title, preview, step_count,
+                last_modified_time, workspace_uris, status, source,
+                project_id, agent_name, parent_conversation_id,
+                raw_summary, group_id, last_user_input_time
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(conversation_id) DO UPDATE SET
+                title = CASE
+                    WHEN conversation_summaries.title = '' OR conversation_summaries.title LIKE 'Conversation %'
+                    THEN excluded.title
+                    ELSE conversation_summaries.title
+                END,
+                preview = CASE
+                    WHEN conversation_summaries.preview = ''
+                    THEN excluded.preview
+                    ELSE conversation_summaries.preview
+                END,
+                step_count = MAX(conversation_summaries.step_count, excluded.step_count),
+                last_modified_time = excluded.last_modified_time,
+                workspace_uris = CASE
+                    WHEN conversation_summaries.workspace_uris IN ('', '[]')
+                    THEN excluded.workspace_uris
+                    ELSE conversation_summaries.workspace_uris
+                END,
+                raw_summary = COALESCE(excluded.raw_summary, conversation_summaries.raw_summary)
+        """
+    else:
+        sql = """
+            INSERT INTO conversation_summaries (
+                conversation_id, title, preview, step_count,
+                last_modified_time, workspace_uris, status, source,
+                project_id, agent_name, parent_conversation_id,
+                raw_summary, group_id
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ON CONFLICT(conversation_id) DO UPDATE SET
+                title = CASE
+                    WHEN conversation_summaries.title = '' OR conversation_summaries.title LIKE 'Conversation %'
+                    THEN excluded.title
+                    ELSE conversation_summaries.title
+                END,
+                preview = CASE
+                    WHEN conversation_summaries.preview = ''
+                    THEN excluded.preview
+                    ELSE conversation_summaries.preview
+                END,
+                step_count = MAX(conversation_summaries.step_count, excluded.step_count),
+                last_modified_time = excluded.last_modified_time,
+                workspace_uris = CASE
+                    WHEN conversation_summaries.workspace_uris IN ('', '[]')
+                    THEN excluded.workspace_uris
+                    ELSE conversation_summaries.workspace_uris
+                END,
+                raw_summary = COALESCE(excluded.raw_summary, conversation_summaries.raw_summary)
+        """
+
+    updated_count = 0
+    for conv in conversations:
+        cid = conv["id"]
+        title = conv.get("title", "")
+        preview = conv.get("preview", "") or title
+        step_count = conv.get("step_count", 0)
+        mtime = conv.get("mtime")
+        if isinstance(mtime, (int, float)):
+            last_mod = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        elif isinstance(mtime, str):
+            last_mod = mtime
+        else:
+            last_mod = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+        ws = conv.get("workspace_uri")
+        if ws:
+            workspace_uris = json.dumps([ws]) if isinstance(ws, str) else json.dumps(ws)
+        else:
+            workspace_uris = "[]"
+
+        status = conv.get("status") or "IDLE"
+        source = conv.get("source") or "cli"
+        project_id = conv.get("project_id", "")
+        agent_name = conv.get("agent_name", "")
+        parent_id = conv.get("parent_conversation_id", "")
+        raw_summary = conv.get("raw_summary_bytes")
+        group_id = conv.get("group_id", "")
+
+        if has_user_input_time:
+            params = (
+                cid, title, preview, step_count,
+                last_mod, workspace_uris, status, source,
+                project_id, agent_name, parent_id,
+                raw_summary, group_id, last_mod
+            )
+        else:
+            params = (
+                cid, title, preview, step_count,
+                last_mod, workspace_uris, status, source,
+                project_id, agent_name, parent_id,
+                raw_summary, group_id
+            )
+
+        cur.execute(sql, params)
+        updated_count += 1
+
+    conn.commit()
+    conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+    conn.close()
+    return updated_count
+
+
+def build_trajectory_inner_data(conversation_id, title, existing_inner_data=None,
+                               workspace_path=None, conversation_mtime=None,
+                               source_is_db=False) -> bytes:
+    """
+    Build the inner protobuf payload for a trajectory summary.
     """
     if existing_inner_data:
         preserved_fields = strip_field_from_protobuf(existing_inner_data, 1)
         inner_info = encode_string_field(1, title) + preserved_fields
 
-        # Decode %20/%3A in existing workspace URIs so folder names display
-        # correctly in Antigravity's sidebar (e.g. "Pine Script Project" not
-        # "Pine%20Script%20Project")
         if not workspace_path:
             existing_ws = extract_workspace_hint(inner_info)
             if existing_ws and ("%20" in existing_ws or "%3A" in existing_ws or "%3a" in existing_ws):
@@ -1431,9 +1788,7 @@ def build_trajectory_entry(conversation_id, title, existing_inner_data=None,
                 inner_info = strip_field_from_protobuf(inner_info, 9)
                 inner_info += build_workspace_field(decoded_ws)
 
-        # Override workspace if user assigned a new one
         if workspace_path:
-            # Strip old workspace (field 9) and inject the new one
             inner_info = strip_field_from_protobuf(inner_info, 9)
             inner_info += build_workspace_field(workspace_path)
         if source_is_db and conversation_mtime:
@@ -1450,6 +1805,23 @@ def build_trajectory_entry(conversation_id, title, existing_inner_data=None,
         if conversation_mtime:
             inner_info += build_timestamp_fields(conversation_mtime)
 
+    return inner_info
+
+
+def build_trajectory_entry(conversation_id, title, existing_inner_data=None,
+                           workspace_path=None, conversation_mtime=None,
+                           source_is_db=False):
+    """
+    Build a single trajectory summary protobuf entry for state.vscdb.
+    """
+    inner_info = build_trajectory_inner_data(
+        conversation_id,
+        title,
+        existing_inner_data=existing_inner_data,
+        workspace_path=workspace_path,
+        conversation_mtime=conversation_mtime,
+        source_is_db=source_is_db,
+    )
     info_b64 = base64.b64encode(inner_info).decode('utf-8')
     sub_message = encode_string_field(1, info_b64)
 
@@ -1572,10 +1944,12 @@ def main():
 
     # ── Validate paths ──────────────────────────────────────────────────────
 
-    if not DB_PATHS:
+    cli_db_path = find_cli_summaries_db()
+    if not DB_PATHS and not cli_db_path.exists() and not cli_db_path.parent.exists():
         print(f"  ERROR: Database not found at any known Antigravity location:")
         for candidate in _DB_CANDIDATES:
             print(f"    {candidate}")
+        print(f"    {cli_db_path}")
         print()
         print("  Make sure Antigravity has been installed and opened at least once.")
         return 1
@@ -1608,11 +1982,25 @@ def main():
 
     # ── Preserve existing metadata ──────────────────────────────────────────
 
-    print("  Reading existing metadata from database(s)...")
-    for db_path in DB_PATHS:
-        app_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(db_path))))
-        print(f"    {app_name}: {db_path}")
-    existing_titles, existing_inner_blobs = extract_existing_metadata_from_paths(DB_PATHS)
+    existing_titles = {}
+    existing_inner_blobs = {}
+    if DB_PATHS:
+        print("  Reading existing metadata from database(s)...")
+        for db_path in DB_PATHS:
+            app_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(db_path))))
+            print(f"    {app_name}: {db_path}")
+        existing_titles, existing_inner_blobs = extract_existing_metadata_from_paths(DB_PATHS)
+
+    if cli_db_path.exists():
+        cli_titles, cli_blobs = extract_existing_metadata_from_cli_db(cli_db_path)
+        for cid, t in cli_titles.items():
+            if cid not in existing_titles:
+                existing_titles[cid] = t
+        for cid, b in cli_blobs.items():
+            if cid not in existing_inner_blobs:
+                existing_inner_blobs[cid] = b
+        print(f"  Loaded existing metadata from {cli_db_path}")
+
     ws_count = sum(1 for v in existing_inner_blobs.values()
                    if extract_workspace_hint(v))
     print(f"  Found {len(existing_titles)} existing titles to preserve")
@@ -1668,7 +2056,13 @@ def main():
         print("  Press Enter or 1: Auto-assign workspaces (recommended)")
         print("  Press 2:          Auto-assign + manually assign the rest")
         print()
-        choice = input("  Your choice: ").strip()
+        choice = "1"
+        try:
+            choice = input("  Your choice: ").strip()
+        except (EOFError, OSError):
+            choice = "1"
+        if not choice:
+            choice = "1"
 
         # Auto-infer from brain artifacts (both options do this)
         print()
@@ -1705,6 +2099,7 @@ def main():
     result_bytes = b""
     ws_total = 0
     ts_updated = 0
+    conversations = []
 
     for cid, title, source, inner_data, has_ws in resolved:
         ws_path = ws_assignments.get(cid)
@@ -1718,12 +2113,35 @@ def main():
         )
         old_timestamp = extract_timestamp_seconds(inner_data, 3) if inner_data else None
 
-        entry = build_trajectory_entry(
+        inner_info = build_trajectory_inner_data(
             cid, title, inner_data, ws_path, conversation_mtime, source_is_db
+        )
+        entry = encode_string_field(1, cid) + encode_length_delimited(
+            2, encode_string_field(1, base64.b64encode(inner_info).decode('utf-8'))
         )
         result_bytes += encode_length_delimited(1, entry)
 
-        if has_ws or ws_path:
+        step_count = 0
+        cli_ws = None
+        if source_is_db and conversation_path:
+            cli_info = inspect_cli_conversation_db(conversation_path)
+            step_count = cli_info.get("step_count", 0)
+            cli_ws = cli_info.get("workspace_uri")
+
+        final_ws = ws_path or cli_ws or (extract_workspace_hint(inner_data) if inner_data else None)
+
+        conversations.append({
+            "id": cid,
+            "title": title,
+            "preview": title,
+            "step_count": step_count,
+            "mtime": conversation_mtime,
+            "workspace_uri": final_ws,
+            "raw_summary_bytes": inner_info,
+            "project_id": "",
+        })
+
+        if has_ws or ws_path or final_ws:
             ws_total += 1
         if conversation_mtime and (
             not inner_data
@@ -1737,18 +2155,32 @@ def main():
 
     # ── Write the rebuilt index to ALL databases ────────────────────────────
 
-    encoded = base64.b64encode(result_bytes).decode('utf-8')
-
-    print("  Writing rebuilt index to database(s):")
     saved_backups = []
-    for db_path in DB_PATHS:
-        app_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(db_path))))
-        suffix = re.sub(r"[^A-Za-z0-9]+", "_", app_name).strip("_").lower()
-        backup_path = write_index_to_database(db_path, encoded, suffix)
-        print(f"    {app_name}: updated")
-        if backup_path:
-            saved_backups.append(backup_path)
-            print(f"      backup: {backup_path}")
+    if DB_PATHS:
+        encoded = base64.b64encode(result_bytes).decode('utf-8')
+        print("  Writing rebuilt index to database(s):")
+        for db_path in DB_PATHS:
+            app_name = os.path.basename(os.path.dirname(os.path.dirname(os.path.dirname(db_path))))
+            suffix = re.sub(r"[^A-Za-z0-9]+", "_", app_name).strip("_").lower()
+            backup_path = write_index_to_database(db_path, encoded, suffix)
+            print(f"    {app_name}: updated")
+            if backup_path:
+                saved_backups.append(backup_path)
+                print(f"      backup: {backup_path}")
+
+    if cli_db_path.exists() or (not DB_PATHS and cli_db_path.parent.exists()):
+        print(f"  Writing CLI summaries to {cli_db_path}...")
+        daemon_active = is_remote_control_daemon_active()
+        if daemon_active:
+            print("  Stopping remote control daemon...")
+            stop_remote_control_daemon()
+        try:
+            cli_count = rebuild_cli_summaries_db(cli_db_path, conversations)
+            print(f"  CLI database updated: {cli_count} summaries saved.")
+        finally:
+            if daemon_active:
+                print("  Restarting remote control daemon...")
+                start_remote_control_daemon()
 
     # ── Done ────────────────────────────────────────────────────────────────
 
