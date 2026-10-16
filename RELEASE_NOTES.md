@@ -1,27 +1,30 @@
-Antigravity Conversation Fix v1.07
+Antigravity Conversation Fix v1.08
 
-💬 Meaningful Titles from `.db` Conversations
+🌐 Antigravity CLI & Remote Control Support
 
-When neither the sidebar index nor a brain heading contains a title, the tool derives a concise title from the first readable user request. It prefers a useful first sentence, replaces HTTP(S) links with their hostname, and limits other prompt-derived titles to 10 words and 60 characters. Exact long raw-prompt titles written by the earlier v1.07 executable are reformatted without changing genuine Antigravity titles.
+Full support for rebuilding `~/.gemini/antigravity-cli/conversation_summaries.db`. Headless Linux servers and Remote Control clients now maintain their conversation index in sync with all conversation databases.
 
-Legacy `.pb` conversations can also recover titles from the first `USER_EXPLICIT` or `USER_INPUT` request in a readable brain transcript or overview. Encrypted `.pb` data without one of those readable artifacts still receives the date-and-ID fallback.
+⚙️ Systemd Daemon Lifecycle Management
 
-🕒 Recent-Message Visibility
+Cleanly pauses `antigravity-cli-daemon.service` before modifying the CLI index database and restarts it in a `finally` block, avoiding WAL lock collisions and corruption during rebuilds.
 
-When a `.db` conversation changes after an earlier repair, the tool refreshes that conversation's sidebar update time on the next run. It replaces only the updated-time field when the file is newer, while preserving created time, workspace assignment, and other internal metadata.
+🛡️ Automatic SQLite Integrity Healing
 
-🛑 Safer Closed-App Check
+Integrity pre-checks run `PRAGMA integrity_check` before modifying databases. If corruption or lock collisions are detected, the tool automatically invokes `sqlite3 .recover` to restore valid SQL and recovers into a fresh database.
 
-The tool now stops without scanning or writing if Antigravity is running. Exact process-name checks avoid mistaking this script or repository path for the app.
+🖥️ Headless Linux Server Compatibility
+
+Interactive workspace prompts handle `EOFError` and `OSError` gracefully when run without a TTY or in scripted background tasks, defaulting safely to automatic workspace assignment.
 
 What it fixes
 
-• Conversations disappeared from the sidebar
+• Conversations disappeared from the sidebar or Remote Control clients
+• Antigravity CLI / Remote Control daemon summaries missing or corrupt
 • Conversations in the wrong order
 • Date-and-ID placeholder titles when a usable first prompt exists
 • Recent `.db` messages disappearing from the sidebar again later
 • Workspace assignments and metadata lost during rebuilds
-• Conversations split across old, new, and backup data folders
+• Conversations split across old, new, CLI, and backup data folders
 
 How to use
 

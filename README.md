@@ -34,6 +34,9 @@ Your Antigravity conversation history disappeared? Conversations showing in the 
 | New `.db` conversation format not detected | ✅ Supports both `.pb` and `.db` files *(v1.06+)* |
 | Placeholder titles despite usable conversation text | ✅ Derives titles from the first `.db` user prompt *(v1.07+)* |
 | Recent `.db` messages disappear from the sidebar later | ✅ Refreshes updated timestamps on re-run *(v1.07+)* |
+| Antigravity CLI / Remote Control daemon summaries missing | ✅ Rebuilds `conversation_summaries.db` *(v1.08+)* |
+| Headless Linux servers crash on interactive prompts | ✅ Graceful non-interactive fallback *(v1.08+)* |
+| Corrupted SQLite index databases | ✅ Automatic `.recover` integrity healing *(v1.08+)* |
 | Running from WSL requires manual file copying | ✅ Native WSL path detection *(v1.05+)* |
 | `python` command fails on macOS/Linux | ✅ Auto-detects Python 3, with built-in fallback *(v1.05+)* |
 
@@ -42,16 +45,20 @@ Your Antigravity conversation history disappeared? Conversations showing in the 
 Antigravity stores conversation data in two places:
 
 - **Conversation files** (`*.pb` or `*.db`) — stored in your user profile
-- **Sidebar index** — a SQLite database in your app data folder (one per Antigravity variant)
+- **Sidebar index** — a SQLite database in your app data folder (one per Antigravity variant, plus `conversation_summaries.db` for the CLI daemon)
 
-| OS | Conversations | Database |
+| Environment | Conversations | Database |
 |---|---|---|
 | Windows | `%USERPROFILE%\.gemini\antigravity\` or `antigravity-ide\` | `%APPDATA%\Antigravity IDE\...\state.vscdb` |
 | macOS | `~/.gemini/antigravity/` or `antigravity-ide/` | `~/Library/Application Support/Antigravity IDE/.../state.vscdb` |
-| Linux | `~/.gemini/antigravity/` or `antigravity-ide/` | `~/.config/Antigravity IDE/.../state.vscdb` |
+| Linux (Desktop) | `~/.gemini/antigravity/` or `antigravity-ide/` | `~/.config/Antigravity IDE/.../state.vscdb` |
+| CLI / Remote Daemon | `~/.gemini/antigravity-cli/conversations/` | `~/.gemini/antigravity-cli/conversation_summaries.db` |
 | WSL | `~/.gemini/antigravity/` or `antigravity-ide/` | Auto-resolved from Windows `%APPDATA%` via `/mnt/c/` |
 
-> **Note:** The tool automatically detects all folder name variants — `antigravity`, `antigravity-ide`, `antigravity-backup`, `Antigravity`, and `Antigravity IDE` — and merges conversations from all locations. Duplicates are automatically removed (newest location wins).
+> **Headless Server & Remote Control Daemon:**
+> On Linux servers running the headless Antigravity Remote Control daemon (`antigravity-cli-daemon.service`), the script automatically detects the service, cleanly pauses it before updating `conversation_summaries.db`, and restarts it afterward. In non-interactive or headless environments without a TTY, interactive input prompts fall back safely to automatic workspace assignment without throwing `EOFError`.
+
+> **Note:** The tool automatically detects all folder name variants — `antigravity`, `antigravity-ide`, `antigravity-cli`, `antigravity-backup`, `Antigravity`, and `Antigravity IDE` — and merges conversations from all locations. Duplicates are automatically removed (newest location wins).
 
 When the index gets corrupted, conversations still exist on disk but don't show up in the sidebar. This tool scans your conversation files, sorts them by date, pulls titles from brain artifacts, or creates concise titles from readable user requests, and writes a clean index back to the database.
 
@@ -73,6 +80,12 @@ When the index gets corrupted, conversations still exist on disk but don't show 
 | `[WS]` | Workspace metadata preserved or recovered |
 
 ## Changelog
+
+### v1.08
+- **New:** **Antigravity CLI & Remote Control Support** — full support for `~/.gemini/antigravity-cli/conversation_summaries.db`. Discovers conversations in `antigravity-cli` and keeps Remote Control clients in sync.
+- **New:** **Systemd Daemon Lifecycle** — cleanly stops `antigravity-cli-daemon.service` before writing to the CLI database and restarts it in a `finally` block, ensuring no lock contention or corrupted WAL states.
+- **New:** **Database Integrity Recovery** — runs `PRAGMA integrity_check` on existing databases and automatically runs `sqlite3 .recover` to restore corrupted databases to a clean state.
+- **New:** **Headless Linux Server Compatibility** — catches `EOFError` and `OSError` on interactive prompts, defaulting safely to auto-assignment.
 
 ### v1.07
 - **Fix:** **Meaningful `.db` titles** — derives a concise title from the first user prompt when neither the existing index nor brain artifacts contain a title, replacing many date-and-ID placeholders.
